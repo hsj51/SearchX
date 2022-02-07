@@ -7,7 +7,7 @@ import requests
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
 from random import randrange
-
+import time
 from telegram import InlineKeyboardMarkup
 
 from google.auth.transport.requests import Request
@@ -418,6 +418,27 @@ class GoogleDriveHelper:
                                                orderBy='folder, modifiedTime desc').execute()["files"]
         return response
 
+    def edit_telegraph(self):
+        nxt_page = 1
+        prev_page = 0
+        for content in self.telegraph_content :
+            if nxt_page == 1 :
+                content += f'<b><a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
+                nxt_page += 1
+            else :
+                if prev_page <= self.num_of_path:
+                    content += f'<b><a href="https://telegra.ph/{self.path[prev_page]}">Prev</a></b>'
+                    prev_page += 1
+                if nxt_page < self.num_of_path:
+                    content += f'<b> | <a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
+                    nxt_page += 1
+            telegra_ph.edit_page(path = self.path[prev_page],
+                                    title = 'SearchX',
+                                    author_name='XXX',
+                                    author_url='https://github.com/l3v11/SearchX',
+                                    html_content=content)
+        return
+
     def drive_query(self, parent_id, search_type, file_name):
         query = ""
         if search_type is not None:
@@ -456,6 +477,7 @@ class GoogleDriveHelper:
         return response
 
     def drive_list(self, file_name):
+        start_time = time.time()
         file_name = self.escapes(file_name)
         search_type = None
         if re.search("^-d ", file_name, re.IGNORECASE):
@@ -509,10 +531,11 @@ class GoogleDriveHelper:
                             msg += f'<b> | <a href="{url}">Index Link</a></b>'
                     msg += '<br><br>'
                     content_count += 1
-                    if content_count >= telegraph_limit:
-                        reached_max_limit = True
-                        break
+                    if content_count % telegraph_limit == 0:
+                        self.telegraph_content.append(msg)
+                        msg = ""
 
+        search_time = time.time() - start_time
         if msg != '':
             self.telegraph_content.append(msg)
 
@@ -523,13 +546,14 @@ class GoogleDriveHelper:
             self.path.append(
                 telegra_ph.create_page(title='SearchX',
                                           author_name='XXX',
-                                          author_url='https://github.com/l3v11',
+                                          author_url='https://github.com/l3v11/SearchX',
                                           html_content=content)['path'])
 
-        msg = "Found " + ("too many" if content_count > telegraph_limit else f"{content_count}") + " results"
+        msg = f"Found {content_count} results in {round(search_time)}s"
 
-        if reached_max_limit:
-            msg += "\n<i>(Top " + f"{telegraph_limit}" + " will appear)</i>"
+        self.num_of_path = len(self.path)
+        if self.num_of_path > 1:
+            self.edit_telegraph()
 
         buttons = button_builder.ButtonMaker()
         buttons.build_button("VIEW HERE", f"https://telegra.ph/{self.path[0]}")
