@@ -120,6 +120,13 @@ except KeyError:
     GDTOT_CRYPT = None
 
 try:
+    MAX_THREADS = int(get_config('MAX_THREADS'))
+    if MAX_THREADS <= 0 or MAX_THREADS is None:
+        raise KeyError
+except KeyError:
+    MAX_THREADS = 1
+
+try:
     DRIVE_INDEX_URL = get_config('DRIVE_INDEX_URL')
     if len(DRIVE_INDEX_URL) == 0:
         DRIVE_INDEX_URL = None

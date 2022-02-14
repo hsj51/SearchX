@@ -10,6 +10,13 @@ from random import randrange
 import time
 from telegram import InlineKeyboardMarkup
 
+from queue import Queue
+from threading import Thread
+
+from httplib2 import Http
+from googleapiclient.http import HttpRequest
+from google_auth_httplib2 import AuthorizedHttp
+
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
@@ -18,7 +25,7 @@ from googleapiclient.errors import HttpError
 from tenacity import *
 
 from bot import LOGGER, DRIVE_NAME, DRIVE_ID, INDEX_URL, telegra_ph, \
-    IS_TEAM_DRIVE, parent_id, USE_SERVICE_ACCOUNTS, DRIVE_INDEX_URL
+    IS_TEAM_DRIVE, parent_id, USE_SERVICE_ACCOUNTS, DRIVE_INDEX_URL, MAX_THREADS
 from bot.helper.ext_utils.bot_utils import *
 from bot.helper.telegram_helper import button_builder
 
@@ -28,6 +35,29 @@ if USE_SERVICE_ACCOUNTS:
     SERVICE_ACCOUNT_INDEX = randrange(len(os.listdir("accounts")))
 
 telegraph_limit = 95
+
+class ThreadWorker(Thread):
+
+    def __init__(self, queue, function, callback=None):
+        Thread.__init__(self)
+        self.queue = queue
+        self.function = function
+        self.callback = callback
+
+    def run(self):
+        while True:
+            index, arg = self.queue.get()
+            result = exception = None
+
+            try:
+                result = self.function(*arg)
+            except Exception as e:
+                exception = e
+            finally:
+                if self.callback is not None:
+                    self.callback(index, result, exception)
+                self.queue.task_done()
+
 
 class GoogleDriveHelper:
     def __init__(self, name=None, listener=None):
@@ -48,6 +78,7 @@ class GoogleDriveHelper:
         self.transferred_size = 0
         self.alt_auth = False
         self.responses = {}
+        self.dir_list = {}
 
     def authorize(self):
         # Get credentials
@@ -62,7 +93,10 @@ class GoogleDriveHelper:
             LOGGER.info(f"Authorizing with {SERVICE_ACCOUNT_INDEX}.json file")
             credentials = service_account.Credentials.from_service_account_file(
                 f'accounts/{SERVICE_ACCOUNT_INDEX}.json', scopes=self.__OAUTH_SCOPE)
-        return build('drive', 'v3', credentials=credentials, cache_discovery=False)
+
+        self.credentials = credentials
+        authorized_http = AuthorizedHttp(credentials, http=Http())
+        return build('drive', 'v3', cache_discovery=False, requestBuilder=self.build_request, http=authorized_http)
 
     def alt_authorize(self):
         credentials = None
@@ -74,8 +108,15 @@ class GoogleDriveHelper:
                 if credentials is None or not credentials.valid:
                     if credentials and credentials.expired and credentials.refresh_token:
                         credentials.refresh(Request())
-                return build('drive', 'v3', credentials=credentials, cache_discovery=False)
+
+                self.credentials = credentials
+                authorized_http = AuthorizedHttp(credentials, http=Http())
+                return build('drive', 'v3', cache_discovery=False, requestBuilder=self.build_request, http=authorized_http)
         return None
+
+    def build_request(self, http, *args, **kwargs):
+        new_http = AuthorizedHttp(self.credentials, http=Http())
+        return HttpRequest(new_http, *args, **kwargs)
 
     @staticmethod
     def getIdFromUrl(link: str):
@@ -399,7 +440,7 @@ class GoogleDriveHelper:
             x = file.get("name")
             y = file.get("id")
         return_list.reverse()
-        return return_list
+        return root_id, return_list
 
     def escapes(self, str_val):
         chars = ['\\', "'", '"', r'\a', r'\b', r'\f', r'\n', r'\r', r'\t']
@@ -462,14 +503,22 @@ class GoogleDriveHelper:
         if exception is not None:
             LOGGER.exception(f"Failed to call the drive api")
             LOGGER.exception(exception)
-        if response is not None:
+        if response["files"] is not None:
             response = response["files"]
         else:
             response = self.drive_query_backup( DRIVE_ID[int(request_id)] )
         self.responses[int(request_id)] = response
 
 
+    def recursive_list_callback(self, index, result, exception):
+        if exception is not None:
+            LOGGER.exception(f"Failed to get recursive drive dir list")
+            LOGGER.exception(exception)
+        else:
+            self.dir_list[result[0]][index] = result[1]
+
     def drive_list(self, file_name):
+
         token_service = self.alt_authorize()
         if token_service is not None:
             self.__service = token_service
@@ -495,7 +544,6 @@ class GoogleDriveHelper:
         query += "trashed=false"
 
         index = 0
-        content_count = 0
         start_time = time.time()
         self.file_name = file_name
 
@@ -508,16 +556,35 @@ class GoogleDriveHelper:
         if index + 1 % 100 != 0:
             self.__batch.execute()
 
+        THREADS = 0
+        queue = Queue()
+        for index, response in self.responses.items():
+            if INDEX_URL[index] is not None:
+                self.dir_list[DRIVE_ID[index]] = {}
+                if response:
+                    count = -1
+                    for file in response:
+                        count += 1
+                        if THREADS < MAX_THREADS:
+                            worker = ThreadWorker(queue, function=self.get_recursive_list, callback=self.recursive_list_callback)
+                            worker.start()
+                            THREADS += 1
+                        queue.put((count, (file, DRIVE_ID[index])))
+
+        #wait until all threading processes are finished
+        queue.join()
 
         msg = ''
+        content_count = 0
         reached_max_limit = False
         add_title_msg = True
-        for index in self.responses:
+        for index, response in self.responses.items():
             parent_id = DRIVE_ID[index]
             add_drive_title = True
-            response = self.responses[index]
             if response:
+                count = -1
                 for file in response:
+                    count += 1
                     if add_title_msg:
                         msg = f'<h4>Query: {file_name}</h4><br>'
                         add_title_msg = False
@@ -531,7 +598,7 @@ class GoogleDriveHelper:
                                f"<b><a href='https://drive.google.com/drive/folders/{file.get('id')}'>Drive Link</a></b>"
                         if INDEX_URL[index] is not None:
                             url_path = "/".join(
-                                [requests.utils.quote(n, safe='') for n in self.get_recursive_list(file, parent_id)])
+                                [requests.utils.quote(n, safe='') for n in self.dir_list[parent_id][count]])
                             url = f'{INDEX_URL[index]}/{url_path}/'
                             msg += f'<b> | <a href="{url}">Index Link</a></b>'
                     else:
@@ -540,7 +607,7 @@ class GoogleDriveHelper:
                                f"&export=download'>Drive Link</a></b>"
                         if INDEX_URL[index] is not None:
                             url_path = "/".join(
-                                [requests.utils.quote(n, safe='') for n in self.get_recursive_list(file, parent_id)])
+                                [requests.utils.quote(n, safe='') for n in self.dir_list[parent_id][count]])
                             url = f'{INDEX_URL[index]}/{url_path}'
                             msg += f'<b> | <a href="{url}">Index Link</a></b>'
 
@@ -550,10 +617,10 @@ class GoogleDriveHelper:
                         self.telegraph_content.append(msg)
                         msg = ""
 
-        search_time = time.time() - start_time
-
         if msg != '':
             self.telegraph_content.append(msg)
+
+        msg = f"Found {content_count} results in {round(time.time() - start_time, 2)}s"
 
         if len(self.telegraph_content) == 0:
             return "Found nothing", None
@@ -562,10 +629,8 @@ class GoogleDriveHelper:
             self.path.append(
                 telegra_ph.create_page(title='SearchX',
                                           author_name='XXX',
-                                          author_url='https://github.com/l3v11/SearchX',
+                                          author_url='https://github.com/hsj51/SearchX',
                                           html_content=content)['path'])
-
-        msg = f"Found {content_count} results in {round(search_time)}s"
 
         self.num_of_path = len(self.path)
         if self.num_of_path > 1:
