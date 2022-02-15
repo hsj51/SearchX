@@ -462,22 +462,31 @@ class GoogleDriveHelper:
     def edit_telegraph(self):
         nxt_page = 1
         prev_page = 0
-        for content in self.telegraph_content :
+        for i in range(len(self.telegraph_content)):
             if nxt_page == 1 :
-                content += f'<b><a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
+                self.telegraph_content[i] += f'<b><a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
                 nxt_page += 1
             else :
                 if prev_page <= self.num_of_path:
-                    content += f'<b><a href="https://telegra.ph/{self.path[prev_page]}">Prev</a></b>'
+                    self.telegraph_content[i] += f'<b><a href="https://telegra.ph/{self.path[prev_page]}">Prev</a></b>'
                     prev_page += 1
                 if nxt_page < self.num_of_path:
-                    content += f'<b> | <a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
+                    self.telegraph_content[i] += f'<b> | <a href="https://telegra.ph/{self.path[nxt_page]}">Next</a></b>'
                     nxt_page += 1
-            telegra_ph.edit_page(path = self.path[prev_page],
+            try:
+                telegra_ph[i % len(telegra_ph)].edit_page(path = self.path[prev_page],
                                     title = 'SearchX',
                                     author_name='XXX',
-                                    author_url='https://github.com/l3v11/SearchX',
-                                    html_content=content)
+                                    author_url='https://github.com/hsj51/SearchX',
+                                    html_content=self.telegraph_content[i])
+            except RetryAfterError as e:
+                LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
+                time.sleep(e.retry_after)
+                telegra_ph[i % len(telegra_ph)].edit_page(path = self.path[prev_page],
+                                    title = 'SearchX',
+                                    author_name='XXX',
+                                    author_url='https://github.com/hsj51/SearchX',
+                                    html_content=self.telegraph_content[i])
         return
 
     def drive_query(self, index, parent_id, query):
@@ -625,12 +634,21 @@ class GoogleDriveHelper:
         if len(self.telegraph_content) == 0:
             return "Found nothing", None
 
-        for content in self.telegraph_content:
-            self.path.append(
-                telegra_ph.create_page(title='SearchX',
+        for i in range(len(self.telegraph_content)):
+            try:
+                self.path.append(
+                telegra_ph[i % len(telegra_ph)].create_page(title='SearchX',
                                           author_name='XXX',
                                           author_url='https://github.com/hsj51/SearchX',
-                                          html_content=content)['path'])
+                                          html_content=self.telegraph_content[i])['path'])
+            except RetryAfterError as e:
+                LOGGER.info("Telegra.ph limit hit, sleeping for {e.retry_after}s")
+                time.sleep(e.retry_after)
+                self.path.append(
+                telegra_ph[i % len(telegra_ph)].create_page(title='SearchX',
+                                          author_name='XXX',
+                                          author_url='https://github.com/hsj51/SearchX',
+                                          html_content=self.telegraph_content[i])['path'])
 
         self.num_of_path = len(self.path)
         if self.num_of_path > 1:

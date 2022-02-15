@@ -189,13 +189,18 @@ else:
     LOGGER.error("drive_list file is missing")
     exit(1)
 
+telegra_ph_accounts_count = 10
+telegra_ph = []
 # Generate Telegraph Token
-sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
-LOGGER.info("Generating TELEGRAPH_TOKEN using '" + sname + "' name")
-telegraph = Telegraph()
-telegraph.create_account(short_name=sname)
-telegraph_token = telegraph.get_access_token()
-telegra_ph = Telegraph(access_token=telegraph_token)
+for i in range(telegra_ph_accounts_count):
+    sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
+    telegraph = Telegraph()
+    telegraph.create_account(short_name=sname)
+    telegraph_token = telegraph.get_access_token()
+    telegra_ph.append(Telegraph(access_token=telegraph_token))
+
+LOGGER.info(f"Generated {telegra_ph_accounts_count} TELEGRAPH_TOKEN")
+
 
 updater = tg.Updater(token=BOT_TOKEN, use_context=True)
 bot = updater.bot
