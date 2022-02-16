@@ -10,6 +10,7 @@ import telegram.ext as tg
 
 from dotenv import load_dotenv
 from telegraph import Telegraph
+from telegraph.exceptions import RetryAfterError
 
 socket.setdefaulttimeout(600)
 
@@ -193,11 +194,18 @@ telegra_ph_accounts_count = 5
 telegra_ph = []
 # Generate Telegraph Token
 for i in range(telegra_ph_accounts_count):
-    sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
-    telegraph = Telegraph()
-    telegraph.create_account(short_name=sname)
-    telegraph_token = telegraph.get_access_token()
-    telegra_ph.append(Telegraph(access_token=telegraph_token))
+    try:
+        sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
+        telegraph = Telegraph()
+        telegraph.create_account(short_name=sname)
+        telegraph_token = telegraph.get_access_token()
+        telegra_ph.append(Telegraph(access_token=telegraph_token))
+    except RetryAfterError as err:
+        LOGGER.info(f"Telegra.ph account creation limit hit, waiting for {err.retry_after}s")
+        time.sleep(err.retry_after)
+        telegraph.create_account(short_name=sname)
+        telegraph_token = telegraph.get_access_token()
+        telegra_ph.append(Telegraph(access_token=telegraph_token))
 
 LOGGER.info(f"Generated {telegra_ph_accounts_count} TELEGRAPH_TOKEN")
 
