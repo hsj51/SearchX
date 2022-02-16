@@ -189,7 +189,7 @@ else:
     LOGGER.error("drive_list file is missing")
     exit(1)
 
-telegra_ph_accounts_count = 10
+telegra_ph_accounts_count = 5
 telegra_ph = []
 # Generate Telegraph Token
 for i in range(telegra_ph_accounts_count):
