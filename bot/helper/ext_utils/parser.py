@@ -38,6 +38,8 @@ def parse_info(data):
     return info_parsed
 
 def appdrive(url: str) -> str:
+    if (APPDRIVE_EMAIL or APPDRIVE_PASS) is None:
+        raise DDLException("APPDRIVE_EMAIL and APPDRIVE_PASS env vars not provided")
     client = requests.Session()
     client.headers.update({
         "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.99 Safari/537.36"
@@ -80,6 +82,8 @@ def appdrive(url: str) -> str:
         raise DDLException(f"{info_parsed['error_message']}")
 
 def gdtot(url: str) -> str:
+    if GDTOT_CRYPT is None:
+        raise DDLException("GDTOT_CRYPT env var not provided")
     client = requests.Session()
     client.cookies.update({'crypt': GDTOT_CRYPT})
     res = client.get(url)
