@@ -9,7 +9,7 @@
 
 ## SearchX
 
-> A simple and fast Telegram Bot for searching data on Google Drive. Uses Multi-threading and Google's batch request for fast search results, Also display search results on multiple telegraph pages. Can clone data from Drive or GDToT links. Supports MongoDB for storing authorized users record.
+> A simple and fast Telegram Bot for searching data on Google Drive. Uses Multi-threading and Google's batch request for fast search results, Also display search results on multiple telegraph pages. Can clone data from Drive / AppDrive / DriveApp / GDToT / Sharer links. Supports MongoDB for storing authorized users record.
 
 </p>
 

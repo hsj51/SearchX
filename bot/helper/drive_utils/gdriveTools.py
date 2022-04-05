@@ -613,7 +613,7 @@ class GoogleDriveHelper:
 
             try:
                 self.path.append(
-                telegra_ph[acc_no].create_page(title='SearchX',
+                    telegra_ph[acc_no].create_page(title='SearchX',
                                           author_name='XXX',
                                           author_url='https://github.com/hsj51/SearchX',
                                           html_content=self.telegraph_content[i])['path'])
@@ -621,7 +621,7 @@ class GoogleDriveHelper:
                 LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
                 time.sleep(e.retry_after)
                 self.path.append(
-                telegra_ph[acc_no].create_page(title='SearchX',
+                    telegra_ph[acc_no].create_page(title='SearchX',
                                           author_name='XXX',
                                           author_url='https://github.com/hsj51/SearchX',
                                           html_content=self.telegraph_content[i])['path'])
@@ -643,7 +643,6 @@ class GoogleDriveHelper:
                                     author_name='XXX',
                                     author_url='https://github.com/hsj51/SearchX',
                                     html_content=self.telegraph_content[i-1])
-
 
         buttons = button_builder.ButtonMaker()
         buttons.build_button("VIEW HERE", f"https://telegra.ph/{self.path[0]}")
