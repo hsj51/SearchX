@@ -137,6 +137,7 @@ try:
 except KeyError:
     MAX_THREADS = 1
 
+try:
     XSRF_TOKEN = get_config('XSRF_TOKEN')
     laravel_session = get_config('laravel_session')
     if len(XSRF_TOKEN) == 0 or len(laravel_session) == 0:
