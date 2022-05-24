@@ -611,40 +611,42 @@ class GoogleDriveHelper:
             else:
                 self.telegraph_content[i] += f'<b>Page {i+1}/{total_pages}</b>'
 
-            try:
-                self.path.append(
-                    telegra_ph[acc_no].create_page(title='SearchX',
-                                          author_name='XXX',
-                                          author_url='https://github.com/hsj51/SearchX',
-                                          html_content=self.telegraph_content[i])['path'])
-            except RetryAfterError as e:
-                LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
-                time.sleep(e.retry_after)
-                self.path.append(
-                    telegra_ph[acc_no].create_page(title='SearchX',
-                                          author_name='XXX',
-                                          author_url='https://github.com/hsj51/SearchX',
-                                          html_content=self.telegraph_content[i])['path'])
+            self.create_page( telegra_ph[acc_no] , self.telegraph_content[i] )
 
             if i != 0:
                 ## Edit prev page to add next page link
                 self.telegraph_content[i-1] += f'<b> | <a href="https://telegra.ph/{self.path[i]}">Next</a></b>'
-                try:
-                    telegra_ph[ (acc_no - 1) if i % page_per_acc == 0 else acc_no ].edit_page(path = self.path[i-1],
-                                    title = 'SearchX',
-                                    author_name='XXX',
-                                    author_url='https://github.com/hsj51/SearchX',
-                                    html_content=self.telegraph_content[i-1])
-                except RetryAfterError as e:
-                    LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
-                    time.sleep(e.retry_after)
-                    telegra_ph[ acc_no - 1 if i % page_per_acc == 0 else acc_no ].edit_page(path = self.path[i-1],
-                                    title = 'SearchX',
-                                    author_name='XXX',
-                                    author_url='https://github.com/hsj51/SearchX',
-                                    html_content=self.telegraph_content[i-1])
+                self.edit_page( telegra_ph[ (acc_no - 1) if i % page_per_acc == 0 else acc_no ],
+                           self.telegraph_content[i-1],
+                           self.path[i-1])
+
 
         buttons = button_builder.ButtonMaker()
         buttons.build_button("VIEW HERE", f"https://telegra.ph/{self.path[0]}")
 
         return msg, InlineKeyboardMarkup(buttons.build_menu(1))
+
+
+    def create_page(self, acc, content):
+        try:
+            self.path.append(
+                acc.create_page(title='SearchX',
+                                author_name='XXX',
+                                author_url='https://github.com/hsj51/SearchX',
+                                html_content=content)['path'])
+        except RetryAfterError as e:
+            LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
+            time.sleep(e.retry_after)
+            self.create_page(acc, content)
+
+    def edit_page(self, acc, content, path):
+        try:
+            acc.edit_page(path = path,
+                          title = 'SearchX',
+                          author_name='XXX',
+                          author_url='https://github.com/hsj51/SearchX',
+                          html_content=content)
+        except RetryAfterError as e:
+            LOGGER.info(f"Telegra.ph limit hit, sleeping for {e.retry_after}s")
+            time.sleep(e.retry_after)
+            self.edit_page(acc, content, path)

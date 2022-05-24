@@ -209,12 +209,9 @@ else:
     LOGGER.error("drive_list file is missing")
     exit(1)
 
-telegra_ph_accounts_count = 5
-telegra_ph = []
-# Generate Telegraph Token
-for i in range(telegra_ph_accounts_count):
+
+def create_account(sname):
     try:
-        sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
         telegraph = Telegraph()
         telegraph.create_account(short_name=sname)
         telegraph_token = telegraph.get_access_token()
@@ -222,9 +219,14 @@ for i in range(telegra_ph_accounts_count):
     except RetryAfterError as err:
         LOGGER.info(f"Telegra.ph account creation limit hit, waiting for {err.retry_after}s")
         time.sleep(err.retry_after)
-        telegraph.create_account(short_name=sname)
-        telegraph_token = telegraph.get_access_token()
-        telegra_ph.append(Telegraph(access_token=telegraph_token))
+        create_account(sname)
+
+telegra_ph_accounts_count = 5
+telegra_ph = []
+# Generate Telegraph Token
+for i in range(telegra_ph_accounts_count):
+    sname = ''.join(random.SystemRandom().choices(string.ascii_letters, k=8))
+    create_account(sname)
 
 LOGGER.info(f"Generated {telegra_ph_accounts_count} TELEGRAPH_TOKEN")
 
